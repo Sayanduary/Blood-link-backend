@@ -1,6 +1,6 @@
 import User from '../models/User.js';
 import Request from '../models/Request.js';
-import Chat from '../models/Chat.js';
+import Chat from '../models/chat.js';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 
 /**
