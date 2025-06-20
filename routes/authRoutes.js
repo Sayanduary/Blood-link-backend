@@ -10,7 +10,7 @@ import {
   resetPassword,
   logout,
   verifyEmail,
-  resendVerification
+
 } from '../controllers/authController.js';
 
 const router = express.Router();
@@ -69,6 +69,6 @@ router.get('/verify-email/:token', verifyEmail);
  * @desc    Resend email verification
  * @access  Private
  */
-router.post('/resend-verification', protect, resendVerification);
+
 
 export default router;
