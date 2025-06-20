@@ -1,47 +1,62 @@
-const errorMiddleware = (err, req, res, next) => {
-    let error = { ...err };
-    error.message = err.message;
-
-    console.log('Error:', err);
-
-    // Mongoose bad ObjectId (CastError)
-    if (err.name === 'CastError') {
-        const message = 'Resource not found';
-        error = new Error(message);
-        error.statusCode = 404;
-    }
-
-    // MongoDB duplicate key error
-    if (err.code === 11000) {
-        const message = 'Duplicate field value entered';
-        error = new Error(message);
-        error.statusCode = 409; // Conflict is more appropriate than 400
-    }
-
-    // Mongoose validation error
-    if (err.name === 'ValidationError') {
-        const message = Object.values(err.errors).map(val => val.message);
-        error = new Error(message.join(', '));
-        error.statusCode = 400;
-    }
-
-    // JWT errors
-    if (err.name === 'JsonWebTokenError') {
-        const message = 'Invalid token';
-        error = new Error(message);
-        error.statusCode = 401;
-    }
-
-    if (err.name === 'TokenExpiredError') {
-        const message = 'Token expired';
-        error = new Error(message);
-        error.statusCode = 401;
-    }
-
-    res.status(error.statusCode || 500).json({
+/**
+ * Restrict routes based on user roles
+ * @param {...string} roles - Allowed roles (e.g. 'admin', 'donor', 'ngo')
+ * @returns {function} Middleware function
+ */
+export const restrictTo = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
         success: false,
-        error: error.message || 'Server Error'
-    });
+        message: 'Not authenticated'
+      });
+    }
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: `Role '${req.user.role}' is not authorized to access this route`
+      });
+    }
+    next();
+  };
 };
 
-export default errorMiddleware;
+/**
+ * Check if user is an admin
+ */
+export const isAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Admin access required'
+    });
+  }
+  next();
+};
+
+/**
+ * Check if user is accessing their own resource
+ * @param {Function} getResourceUserId - Function to extract user ID from resource
+ * @returns {function} Middleware function
+ */
+export const isResourceOwner = (getResourceUserId) => {
+  return async (req, res, next) => {
+    try {
+      const resourceUserId = await getResourceUserId(req);
+      const currentUser = req.user.id.toString();
+      if (req.user.role === 'admin' || (resourceUserId && resourceUserId.toString() === currentUser)) {
+        return next();
+      }
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to access this resource'
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error checking resource ownership',
+        error: error.message
+      });
+    }
+  };
+};
