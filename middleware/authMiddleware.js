@@ -1,33 +1,72 @@
-import jwt from "jsonwebtoken";
+import { getTokenFromRequest, verifyToken } from '../utils/tokenUtils.js';
+import User from '../models/User.js';
 
-export const requireSignIn = (req, res, next) => {
+/**
+ * Protect routes - Verify JWT token and attach user to request
+ */
+export const protect = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).send({ success: false, message: "No token provided" });
+    // Get token from request
+    const token = getTokenFromRequest(req);
 
-    const token = authHeader.split(' ')[1];
-
-    if (!token) return res.status(401).send({ success: false, message: "No token provided" });
-
-    if (!process.env.JWT_SECRET) {
-      console.error("JWT_SECRET is not defined.");
-      return res.status(500).send({ success: false, message: "Internal Server Error" });
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized, no token provided'
+      });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // Attach user info
-    next(); // Proceed to the next middleware/route handler
-  } catch (err) {
-    console.error(err);
-    return res.status(401).send({ success: false, message: "Invalid or expired token" });
+    // Verify token
+    const decoded = verifyToken(token);
+
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized, token invalid or expired'
+      });
+    }
+
+    // Check if token type is auth
+    if (decoded.type !== 'auth') {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized, invalid token type'
+      });
+    }
+
+    // Find user by ID
+    const user = await User.findById(decoded.id).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: 'Account is deactivated'
+      });
+    }
+
+    // Add user to request object
+    req.user = {
+      id: user._id,
+      role: user.role,
+      name: user.name,
+      email: user.email
+    };
+
+    next();
+  } catch (error) {
+    console.error('Auth middleware error:', error);
+    res.status(401).json({
+      success: false,
+      message: 'Authentication failed',
+      error: error.message
+    });
   }
 };
-
-// isAdmin.js
-export const isAdmin = (req, res, next) => {
-  if (req.user && req.user.role === 1) {
-    return next(); // Proceed if admin
-  }
-  return res.status(403).send({ success: false, message: "Access denied - Admins only." });
-};
-
