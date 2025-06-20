@@ -1,6 +1,12 @@
 
 import mongoose from 'mongoose';
-import { MONGODB_URI, NODE_ENV } from '../config/env.js';
+import dotenv from 'dotenv';
+dotenv.config();
+const MONGODB_URI = process.env.MONGODB_URI;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+if (!NODE_ENV) {
+    throw new Error('Please provide the NODE_ENV environment variable inside the .env.<development/production>.local');
+}
 
 if (!MONGODB_URI) {
     throw new Error('Please provide the MONGODB_URI environment variable inside the .env.<development/production>.local');
