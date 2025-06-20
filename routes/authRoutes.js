@@ -1,165 +1,74 @@
 import express from 'express';
-import User from '../models/User.js';
-import { asyncHandler, AppError } from '../middleware/errorHandler.js';
-import { generateToken, verifyToken } from '../utils/tokenUtils.js';
 import { protect } from '../middleware/authMiddleware.js';
+
+// Import your controller functions here
+import {
+  register,
+  login,
+  getCurrentUser,
+  forgotPassword,
+  resetPassword,
+  logout,
+  verifyEmail,
+  resendVerification
+} from '../controllers/authController.js';
 
 const router = express.Router();
 
 /**
- * @route POST /api/auth/register
- * @desc Register new user
- * @access Public
+ * @route   POST /api/auth/register
+ * @desc    Register a new user
+ * @access  Public
  */
-router.post('/register', asyncHandler(async (req, res) => {
-  const { name, email, password, phone, role } = req.body;
-
-  if (!name || !email || !password || !role) {
-    throw new AppError('Please provide all required fields', 400);
-  }
-
-  const userExists = await User.findOne({ email });
-
-  if (userExists) {
-    throw new AppError('User already exists with this email', 409);
-  }
-
-  const user = await User.create({
-    name,
-    email,
-    password,
-    phone,
-    role,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  });
-
-  const token = generateToken(user._id, user.role);
-
-  res.status(201).json({
-    success: true,
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role
-    },
-    token
-  });
-}));
+router.post('/register', register);
 
 /**
- * @route POST /api/auth/login
- * @desc Login user
- * @access Public
+ * @route   POST /api/auth/login
+ * @desc    Login a user
+ * @access  Public
  */
-router.post('/login', asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    throw new AppError('Please provide email and password', 400);
-  }
-
-  const user = await User.findOne({ email }).select('+password');
-
-  if (!user || !(await user.comparePassword(password))) {
-    throw new AppError('Invalid credentials', 401);
-  }
-
-  if (!user.isActive) {
-    throw new AppError('Account is deactivated', 403);
-  }
-
-  const token = generateToken(user._id, user.role);
-
-  res.status(200).json({
-    success: true,
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role
-    },
-    token
-  });
-}));
+router.post('/login', login);
 
 /**
- * @route GET /api/auth/me
- * @desc Get current user profile
- * @access Private
+ * @route   GET /api/auth/me
+ * @desc    Get current logged in user
+ * @access  Private
  */
-router.get('/me', protect, asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user.id).select('-password');
-  res.status(200).json({
-    success: true,
-    user
-  });
-}));
+router.get('/me', protect, getCurrentUser);
 
 /**
- * @route POST /api/auth/forgot-password
- * @desc Send password reset link
- * @access Public
+ * @route   POST /api/auth/forgot-password
+ * @desc    Initiate forgot password process
+ * @access  Public
  */
-router.post('/forgot-password', asyncHandler(async (req, res) => {
-  const { email } = req.body;
-  if (!email) throw new AppError('Email is required', 400);
-
-  const user = await User.findOne({ email });
-  if (!user) {
-    throw new AppError('No user found with this email', 404);
-  }
-
-  // Generate token
-  const resetToken = generateToken(user._id, user.role, '30m', 'reset');
-  user.resetPasswordToken = resetToken;
-  user.resetPasswordExpires = Date.now() + 30 * 60 * 1000; // 30 minutes
-  await user.save();
-
-  // Email sending logic should be here (see utils/notify.js)
-  // For now, just return token for demo
-  res.status(200).json({
-    success: true,
-    message: 'Password reset link sent',
-    resetToken
-  });
-}));
+router.post('/forgot-password', forgotPassword);
 
 /**
- * @route POST /api/auth/reset-password
- * @desc Reset user password
- * @access Public
+ * @route   POST /api/auth/reset-password
+ * @desc    Reset user password
+ * @access  Public
  */
-router.post('/reset-password', asyncHandler(async (req, res) => {
-  const { token, newPassword } = req.body;
-  if (!token || !newPassword) {
-    throw new AppError('Token and new password are required', 400);
-  }
+router.post('/reset-password', resetPassword);
 
-  const decoded = verifyToken(token);
-  if (!decoded || decoded.type !== 'reset') {
-    throw new AppError('Invalid or expired reset token', 400);
-  }
+/**
+ * @route   POST /api/auth/logout
+ * @desc    Logout user (optional, if you use tokens in cookies)
+ * @access  Private
+ */
+router.post('/logout', protect, logout);
 
-  const user = await User.findById(decoded.id).select('+password');
-  if (!user || !user.resetPasswordToken || user.resetPasswordToken !== token) {
-    throw new AppError('Invalid or expired reset token', 400);
-  }
-  if (user.resetPasswordExpires < Date.now()) {
-    throw new AppError('Reset token has expired', 400);
-  }
+/**
+ * @route   GET /api/auth/verify-email/:token
+ * @desc    Verify user email
+ * @access  Public
+ */
+router.get('/verify-email/:token', verifyEmail);
 
-  user.password = newPassword;
-  user.resetPasswordToken = null;
-  user.resetPasswordExpires = null;
-  await user.save();
-
-  res.status(200).json({
-    success: true,
-    message: 'Password reset successful'
-  });
-}));
+/**
+ * @route   POST /api/auth/resend-verification
+ * @desc    Resend email verification
+ * @access  Private
+ */
+router.post('/resend-verification', protect, resendVerification);
 
 export default router;
