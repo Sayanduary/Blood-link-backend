@@ -1,88 +1,97 @@
 import express from 'express';
+import {
+  createRequest,
+  getRequests,
+  getRequestById,
+  updateRequest,
+  cancelRequest,
+  acceptRequest,
+  fulfillRequest
+} from '../controllers/requestController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { restrictTo } from '../middleware/roleMiddleware.js';
-import * as requestController from '../controllers/requestController.js';
+import Request from '../models/Request.js';
 
 const router = express.Router();
 
-/**
- * @route   POST /api/requests
- * @desc    Create a new blood request
- * @access  Private (Requester, Admin, NGO)
- */
-router.post(
-  '/',
-  protect,
-  restrictTo('requester', 'admin', 'ngo'),
-  requestController.createRequest
+// All request routes require authentication
+router.use(protect);
+
+// Routes for all authenticated users
+router.get('/', getRequests);
+router.get('/:id', getRequestById);
+
+// Requester routes
+router.post('/', restrictTo('requester'), createRequest);
+
+// Update request route with ownership check
+router.put('/:id', 
+  restrictTo('requester', 'admin'), 
+  async (req, res, next) => {
+    try {
+      const request = await Request.findById(req.params.id);
+      if (!request) {
+        return res.status(404).json({
+          success: false,
+          message: 'Request not found'
+        });
+      }
+      
+      if (req.user.role === 'admin' || request.requester.toString() === req.user.id) {
+        next();
+      } else {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to update this request'
+        });
+      }
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error checking request ownership',
+        error: error.message
+      });
+    }
+  }, 
+  updateRequest
 );
 
-/**
- * @route   GET /api/requests
- * @desc    Get all requests (with filters, pagination)
- * @access  Private (All roles)
- */
-router.get(
-  '/',
-  protect,
-  requestController.getRequests
+// Cancel request route with ownership check
+router.put('/:id/cancel', 
+  restrictTo('requester', 'admin'), 
+  async (req, res, next) => {
+    try {
+      const request = await Request.findById(req.params.id);
+      if (!request) {
+        return res.status(404).json({
+          success: false,
+          message: 'Request not found'
+        });
+      }
+      
+      if (req.user.role === 'admin' || request.requester.toString() === req.user.id) {
+        next();
+      } else {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to cancel this request'
+        });
+      }
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error checking request ownership',
+        error: error.message
+      });
+    }
+  }, 
+  cancelRequest
 );
 
-/**
- * @route   GET /api/requests/:id
- * @desc    Get specific request by ID
- * @access  Private (Owner, Donor, Admin, or if isPublic)
- */
-router.get(
-  '/:id',
-  protect,
-  requestController.getRequestById
-);
+// Donor routes
+router.put('/:id/accept', restrictTo('donor'), acceptRequest);
 
-/**
- * @route   PUT /api/requests/:id
- * @desc    Update a request (only by requester or admin, and only if not matched/fulfilled)
- * @access  Private (Owner, Admin)
- */
-router.put(
-  '/:id',
-  protect,
-  requestController.updateRequest
-);
-
-/**
- * @route   PUT /api/requests/:id/cancel
- * @desc    Cancel a request (only by requester or admin)
- * @access  Private (Owner, Admin)
- */
-router.put(
-  '/:id/cancel',
-  protect,
-  requestController.cancelRequest
-);
-
-/**
- * @route   PUT /api/requests/:id/accept
- * @desc    Donor accepts a request (status: pending -> matched)
- * @access  Private (Donor only)
- */
-router.put(
-  '/:id/accept',
-  protect,
-  restrictTo('donor'),
-  requestController.acceptRequest
-);
-
-/**
- * @route   PUT /api/requests/:id/fulfill
- * @desc    Doctor verifies/fulfills a request (status: matched -> fulfilled)
- * @access  Private (Doctor only)
- */
-router.put(
-  '/:id/fulfill',
-  protect,
-  restrictTo('doctor'),
-  requestController.fulfillRequest
-);
+// Doctor routes
+router.put('/:id/fulfill', restrictTo('doctor'), fulfillRequest);
 
 export default router;
