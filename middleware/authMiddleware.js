@@ -31,4 +31,3 @@ export const isAdmin = (req, res, next) => {
   return res.status(403).send({ success: false, message: "Access denied - Admins only." });
 };
 
-// Example of router usage
