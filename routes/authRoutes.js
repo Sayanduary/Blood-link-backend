@@ -9,7 +9,6 @@ import {
   forgotPassword,
   resetPassword,
   logout,
-  verifyEmail,
 
 } from '../controllers/authController.js';
 
@@ -62,7 +61,6 @@ router.post('/logout', protect, logout);
  * @desc    Verify user email
  * @access  Public
  */
-router.get('/verify-email/:token', verifyEmail);
 
 /**
  * @route   POST /api/auth/resend-verification
