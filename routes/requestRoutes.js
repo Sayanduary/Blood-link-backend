@@ -406,3 +406,5 @@ export const fulfillRequest = asyncHandler(async (req, res) => {
     data: request
   });
 });
+
+export default requestRoutes;
