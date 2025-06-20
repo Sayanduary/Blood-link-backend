@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import { Server } from 'socket.io';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { basicLimiter, authLimiter } from './middleware/rateLimit.js';
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -57,6 +58,12 @@ app.use(cookieParser());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Apply rate limiting
+// Apply basic rate limiting to all API routes
+app.use('/api', basicLimiter);
+// Apply stricter rate limiting to auth routes - this will override the basic limiter for auth routes
+app.use('/api/auth', authLimiter);
 
 // API routes
 app.use('/api/auth', authRoutes);

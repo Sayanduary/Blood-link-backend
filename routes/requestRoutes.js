@@ -25,8 +25,8 @@ router.get('/:id', getRequestById);
 router.post('/', restrictTo('requester'), createRequest);
 
 // Update request route with ownership check
-router.put('/:id', 
-  restrictTo('requester', 'admin'), 
+router.put('/:id',
+  restrictTo('requester', 'admin'),
   async (req, res, next) => {
     try {
       const request = await Request.findById(req.params.id);
@@ -36,7 +36,7 @@ router.put('/:id',
           message: 'Request not found'
         });
       }
-      
+
       if (req.user.role === 'admin' || request.requester.toString() === req.user.id) {
         next();
       } else {
@@ -52,13 +52,13 @@ router.put('/:id',
         error: error.message
       });
     }
-  }, 
+  },
   updateRequest
 );
 
 // Cancel request route with ownership check
-router.put('/:id/cancel', 
-  restrictTo('requester', 'admin'), 
+router.put('/:id/cancel',
+  restrictTo('requester', 'admin'),
   async (req, res, next) => {
     try {
       const request = await Request.findById(req.params.id);
@@ -68,7 +68,7 @@ router.put('/:id/cancel',
           message: 'Request not found'
         });
       }
-      
+
       if (req.user.role === 'admin' || request.requester.toString() === req.user.id) {
         next();
       } else {
@@ -84,7 +84,7 @@ router.put('/:id/cancel',
         error: error.message
       });
     }
-  }, 
+  },
   cancelRequest
 );
 
